@@ -20,7 +20,7 @@
 <div>
     <p><b>How to use?</b> Input any address and click the button</p>
   <label for="addressInput">Enter Address:</label>
-  <input type="text" style="width:600px;" id="addressInput" placeholder="0x1234..." value="<?= (isset($_GET["address"])?$_GET["address"]:"") ?>" autofocus>
+  <input type="text" style="width:600px;" id="addressInput" placeholder="0x1234..." value="" autofocus>
   <button id="checkBalanceButton">Check Balances & Earned Tokens</button>
 </div>
 
@@ -201,13 +201,7 @@
     document.getElementById("xPhotonInfo").style.display = "none";
     document.getElementById("oldStakingPoolInfo").style.display = "none";
 
-      // PHP passing address to JavaScript
-      const userAddress = "<?php echo ( isset($_GET["address"]) && preg_match('/^0x[a-fA-F0-9]{40}$/', $_GET["address"]) ) ? $_GET['address'] : ''; ?>";
-    
-    if (userAddress) {
-      addressInput.value = userAddress;
-      checkBalanceButton.click(); // Trigger button click if address is present
-    }
+
   };
 </script>
 </body>
