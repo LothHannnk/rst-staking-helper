@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RST Staking Helper with xPhoton integration</title>
+    <script src="ethers.umd.min.js"></script>
+</head>
+<body>
+    <h1>< ! > Use at your own risk < ! ></h1>
+    <h2>RST Staking Helper</h2>
+    <button onclick="connectWallet()">Connect Wallet</button>
+    <p id="walletAddress">Not connected</p>
+    <p id="networkStatus">Network: Not connected to BEAM</p>
+    <p id="balance">Wallet Balance: 0 RST</p>
+    <p><span id="earnedRewards">Pending Rewards from xPhoton staking: 0 RST</span> <button onclick="withdrawRewards()">Withdraw Rewards</button></p>
+    
+
+    <hr/>
+    <label>Amount to Stake (RST on BEAM):</label>
+    <input type="number" id="amount" placeholder="Enter amount" />
+
+    <button onclick="approve()">1) Approve</button>
+    <button onclick="stake()">2) Stake</button>
+    <hr/>
+    <p id="stakedBalance">Staked RST: 0 RST</p>
+    <button onclick="unstake()">Unstake All</button>
+
+    <p id="status"></p>
+
+    <script>
+        const BEAM_TOKEN_ADDRESS = "0xe338aA35D844D5C1a4E052380DBFA939e0cce13F";
+        const STAKING_CONTRACT_ADDRESS = "0x1F8b0B05e9b7fC8c9b71FbE79c1270fAa4fb6229";
+        const XPHOTON_POOL_ADDRESS = "0x71F0EcbF37EdBbc5A3d7daA968Dc1b8AcbAF2662";
+        
+        const BEAM_ABI = [  
+            "function approve(address spender, uint256 amount) public returns (bool)",
+            "function balanceOf(address account) public view returns (uint256)" 
+        ];
+        const STAKING_ABI = [
+            "function stake(uint256 amount) public",
+            "function unstake() public", 
+            "function getStakeInfo(address _user) public view returns (uint256)"
+        ];
+        const REWARDS_ABI = [
+            "function rstEarned(address account) public view returns (uint256)",
+            "function withdrawReward() public"
+        ];
+        const BEAM_NETWORK_CHAIN_ID = "0x10f1"; 
+        
+        let provider, signer, beamToken, stakingContract, rewardsContract;
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                const address = await signer.getAddress();
+                document.getElementById("walletAddress").innerText = `Connected: ${address}`;
+
+                // Check if the user is on the BEAM network
+                await checkNetwork();
+
+                beamToken = new ethers.Contract(BEAM_TOKEN_ADDRESS, BEAM_ABI, signer);
+                stakingContract = new ethers.Contract(STAKING_CONTRACT_ADDRESS, STAKING_ABI, signer);
+                rewardsContract = new ethers.Contract(XPHOTON_POOL_ADDRESS, REWARDS_ABI, signer);
+
+                await getBalance(address);
+                await getStakedBalance(address);
+                await getPendingRewards(address);
+            } else {
+                alert("No EVM wallet detected!");
+            }
+        }
+
+        async function checkNetwork() {
+            const network = await provider.getNetwork();
+            if (network.chainId === parseInt(BEAM_NETWORK_CHAIN_ID, 16)) {
+                document.getElementById("networkStatus").innerText = "Network: Connected to BEAM";
+            } else {
+                document.getElementById("networkStatus").innerText = "Network: Not connected to BEAM";
+                alert("Please switch to the BEAM network.");
+            }
+        }
+
+        async function getBalance(address) {
+            try {
+                const balance = await beamToken.balanceOf(address);
+                document.getElementById("balance").innerText = `Wallet Balance: ${ethers.utils.formatUnits(balance, 18)} RST`;
+            } catch (error) {
+                console.error("Error fetching balance: ", error);
+            }
+        }
+
+        async function getStakedBalance(address) {
+            try {
+                const stakedAmount = await stakingContract.getStakeInfo(address);
+                document.getElementById("stakedBalance").innerText = `Staked RST: ${ethers.utils.formatUnits(stakedAmount, 18)} RST`;
+            } catch (error) {
+                console.error("Error fetching staked balance: ", error);
+            }
+        }
+
+        async function getPendingRewards(address) {
+            try {
+                const rewards = await rewardsContract.rstEarned(address);
+                const formattedRewards = ethers.utils.formatUnits(rewards, 18);
+                document.getElementById("earnedRewards").innerText = `Pending Rewards from xPhoton staking: ${formattedRewards} RST`;
+            } catch (error) {
+                console.error("Error fetching pending rewards from xPhoton staking: ", error);
+            }
+        }
+        async function withdrawRewards() {
+    try {
+        const tx = await rewardsContract.withdrawReward();
+        document.getElementById("status").innerText = "Withdrawing rewards from xPhoton staking...";
+        await tx.wait();
+        
+        // Wait a few seconds before updating balances to ensure blockchain state is updated
+        await new Promise(resolve => setTimeout(resolve, 3000)); 
+
+        document.getElementById("status").innerText = "Rewards from xPhoton staking withdrawn successfully!";
+        
+        // Refresh balances after waiting
+        const userAddress = await signer.getAddress();
+        await getPendingRewards(userAddress);
+        await getBalance(userAddress);
+        await getStakedBalance(userAddress);
+    } catch (error) {
+        console.error("Error withdrawing rewards from xPhoton staking: ", error);
+        alert("Failed to withdraw rewards from xPhoton staking!");
+    }
+}
+
+
+        async function approve() {
+            const amount = document.getElementById("amount").value;
+            if (!amount || amount <= 0) {
+                alert("Enter a valid amount!");
+                return;
+            }
+            try {
+                const tx = await beamToken.approve(STAKING_CONTRACT_ADDRESS, ethers.utils.parseUnits(amount, 18));
+                document.getElementById("status").innerText = "Approving...";
+                await tx.wait();
+                document.getElementById("status").innerText = "Approval successful!";
+            } catch (error) {
+                console.error(error);
+                alert("Approval failed!");
+            }
+        }
+
+        async function stake() {
+            const amount = document.getElementById("amount").value;
+            if (!amount || amount <= 0) {
+                alert("Enter a valid amount!");
+                return;
+            }
+            try {
+                const tx = await stakingContract.stake(ethers.utils.parseUnits(amount, 18));
+                document.getElementById("status").innerText = "Staking...";
+                await tx.wait();
+                document.getElementById("status").innerText = "Staking successful!";
+                await getBalance(await signer.getAddress());
+                await getStakedBalance(await signer.getAddress());
+            } catch (error) {
+                console.error(error);
+                alert("Staking failed!");
+            }
+        }
+    </script>
+</body>
+</html>
