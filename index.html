@@ -168,6 +168,22 @@
                 alert("Staking failed!");
             }
         }
+
+                // New unstake function (no input needed)
+        async function unstake() {
+            try {
+                const tx = await stakingContract.unstake(); // No input parameter needed
+                document.getElementById("status").innerText = "Unstaking...";
+                await tx.wait();
+                document.getElementById("status").innerText = "Unstaking successful!";
+                // After unstaking, update the balances again
+                await getBalance(await signer.getAddress());
+                await getStakedBalance(await signer.getAddress());
+            } catch (error) {
+                console.error(error);
+                alert("Unstaking failed!");
+            }
+        }
     </script>
 </body>
 </html>
